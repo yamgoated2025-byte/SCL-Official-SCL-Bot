@@ -1,0 +1,16 @@
+{
+  "name": "league-bot",
+  "version": "1.0.0",
+  "description": "Discord league hosting bot",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/node": "^22.13.11",
+    "discord.js": "^14.26.3"
+  }
+}
