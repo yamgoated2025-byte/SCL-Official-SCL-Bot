@@ -462,7 +462,7 @@ function buildPromotionListEmbed() {
       const startDate = new Date(promotion.startAt);
       const endDate = new Date(promotion.endAt);
       const countdown = status === "active" ? `${formatDuration(endDate - now)} left` : status === "scheduled" ? `${formatDuration(startDate - now)} until start` : "Completed";
-      return `\`${promotion.id}\` ${promotion.serverName} — ${status} — ${countdown}`;
+      return `\`${promotion.id}\` ${promotion.serverName} — ${status} �� ${countdown}`;
     });
     embed.addFields({ name: "All Promotions", value: lines.slice(0, 20).join("\n"), inline: false });
   }
@@ -1190,12 +1190,6 @@ async function handleBanCommand(message, targetUser, isHardban = false) {
     return;
   }
 
-  const targetMember = await message.guild.members.fetch(targetUser.id).catch(() => null);
-  if (!targetMember && !isHardban) {
-    await message.reply("I cannot find that user in this server.").catch(() => null);
-    return;
-  }
-
   try {
     const deleteMessageDays = isHardban ? 7 : 0;
     await message.guild.bans.create(targetUser.id, {
@@ -1509,28 +1503,27 @@ client.on(Events.MessageCreate, async (message) => {
   try {
     // Handle prefix commands (,kick, ,ban, ,hb)
     if (message.content.startsWith(",kick ")) {
-      const args = message.content.slice(6).trim().split(/\s+/);
       const mentionedUser = message.mentions.users.first();
       await handleKickCommand(message, mentionedUser);
       return;
     }
 
     if (message.content.startsWith(",ban ")) {
-      const args = message.content.slice(5).trim().split(/\s+/);
       const mentionedUser = message.mentions.users.first();
       await handleBanCommand(message, mentionedUser, false);
       return;
     }
 
     if (message.content.startsWith(",hb ")) {
-      const args = message.content.slice(4).trim().split(/\s+/);
       const mentionedUser = message.mentions.users.first();
       await handleBanCommand(message, mentionedUser, true);
       return;
     }
 
-    // Handle guess and mention messages
+    // Handle guess messages
     await handleGuessMessage(message);
+    
+    // Handle mention messages
     await handleMentionMessage(message);
   } catch (error) {
     console.error("Message handling error:", error);
