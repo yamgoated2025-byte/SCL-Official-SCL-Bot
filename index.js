@@ -27,6 +27,7 @@ const GENERAL_CHANNEL_ID = "1493746394651951286";
 const HEAD_OF_EVENT_ROLE_ID = "1482428444070379611";
 const GIVEAWAY_PING_ROLE_ID = "1460048231424852180";
 const PROMOTION_ALLOWED_USER_IDS = ["1180944141291634728", "1459790270370676798"];
+const HICOM_ROLE_ID = "1474820927173689344";
 const DATABASE_PATH = path.join(__dirname, "database.json");
 
 const matchFormats = {
@@ -125,6 +126,10 @@ function hasLeagueHostRole(member) {
 
 function hasHeadOfEventRole(member) {
   return hasRole(member, HEAD_OF_EVENT_ROLE_ID);
+}
+
+function hasHicomRole(member) {
+  return hasRole(member, HICOM_ROLE_ID);
 }
 
 function canUsePromotionCommand(userId) {
@@ -991,6 +996,28 @@ async function handlePromotionTimings(interaction) {
   }
 }
 
+async function handleChannelLock(interaction, shouldLock) {
+  if (!hasHicomRole(interaction.member)) {
+    await interaction.reply({ content: "Only hicom members can lock or unlock channels.", ephemeral: true });
+    return;
+  }
+
+  const targetChannel = interaction.options.getChannel("channel", false) || interaction.channel;
+  if (!targetChannel || !targetChannel.guild || !targetChannel.permissionOverwrites) {
+    await interaction.reply({ content: "That channel cannot be locked or unlocked.", ephemeral: true });
+    return;
+  }
+
+  await targetChannel.permissionOverwrites.edit(targetChannel.guild.roles.everyone, {
+    SendMessages: shouldLock ? false : null
+  }, { reason: `${shouldLock ? "Locked" : "Unlocked"} by ${interaction.user.tag}` });
+
+  await interaction.reply({
+    content: shouldLock ? `<#${targetChannel.id}> has been locked.` : `<#${targetChannel.id}> has been unlocked.`,
+    allowedMentions: { parse: [] }
+  });
+}
+
 async function handleEventButton(interaction, action, eventId) {
   if (!hasHeadOfEventRole(interaction.member)) {
     await interaction.reply({ content: "Only Head of Event members can use event controls.", ephemeral: true });
@@ -1057,6 +1084,31 @@ async function handleGuessMessage(message) {
 
 async function handleMentionMessage(message) {
   if (message.author.bot || !message.mentions.users.has(message.client.user.id)) return;
+
+  const cleanContent = message.content.replace(/<@!?\d+>/g, "").trim().toLowerCase();
+  const wantsUnlock = /\b(unlock|open)\b/.test(cleanContent);
+  const wantsLock = !wantsUnlock && /\b(lock|close)\b/.test(cleanContent);
+
+  if (wantsLock || wantsUnlock) {
+    if (!hasHicomRole(message.member)) {
+      await message.reply("Only hicom members can ask me to lock or unlock channels.").catch(console.error);
+      return;
+    }
+
+    const targetChannel = message.mentions.channels.first() || message.channel;
+    if (!targetChannel || !targetChannel.guild || !targetChannel.permissionOverwrites) {
+      await message.reply("I cannot lock or unlock that channel.").catch(console.error);
+      return;
+    }
+
+    await targetChannel.permissionOverwrites.edit(targetChannel.guild.roles.everyone, {
+      SendMessages: wantsLock ? false : null
+    }, { reason: `${wantsLock ? "Locked" : "Unlocked"} by ${message.author.tag} through bot mention` });
+
+    await message.reply(wantsLock ? `<#${targetChannel.id}> has been locked.` : `<#${targetChannel.id}> has been unlocked.`).catch(console.error);
+    return;
+  }
+
   const reply = sanitizeBotReply(buildMentionReply(message.content));
   await message.reply(reply).catch(console.error);
 }
@@ -1221,10 +1273,30 @@ const promotionTimingsCommand = new SlashCommandBuilder()
     .setDescription("Show all promotion timings."))
   .setDMPermission(false);
 
+const lockCommand = new SlashCommandBuilder()
+  .setName("lock")
+  .setDescription("Lock a channel so members cannot send messages.")
+  .addChannelOption((option) => option
+    .setName("channel")
+    .setDescription("Choose a channel. Leave empty to lock this channel.")
+    .setRequired(false)
+    .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement))
+  .setDMPermission(false);
+
+const unlockCommand = new SlashCommandBuilder()
+  .setName("unlock")
+  .setDescription("Unlock a channel so members can send messages again.")
+  .addChannelOption((option) => option
+    .setName("channel")
+    .setDescription("Choose a channel. Leave empty to unlock this channel.")
+    .setRequired(false)
+    .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement))
+  .setDMPermission(false);
+
 async function registerCommands(client) {
   const rest = new REST({ version: "10" }).setToken(TOKEN);
   const applicationId = CLIENT_ID || client.user.id;
-  const commands = [leagueCommand.toJSON(), hostEventCommand.toJSON(), endEventCommand.toJSON(), eventHistoryCommand.toJSON(), promotionTimingsCommand.toJSON()];
+  const commands = [leagueCommand.toJSON(), hostEventCommand.toJSON(), endEventCommand.toJSON(), eventHistoryCommand.toJSON(), promotionTimingsCommand.toJSON(), lockCommand.toJSON(), unlockCommand.toJSON()];
 
   if (GUILD_ID) {
     await rest.put(Routes.applicationGuildCommands(applicationId, GUILD_ID), { body: commands });
@@ -1314,6 +1386,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (interaction.commandName === "promotiontimings") {
       await handlePromotionTimings(interaction);
+      return;
+    }
+
+    if (interaction.commandName === "lock") {
+      await handleChannelLock(interaction, true);
+      return;
+    }
+
+    if (interaction.commandName === "unlock") {
+      await handleChannelLock(interaction, false);
     }
   } catch (error) {
     console.error("Interaction error:", error);
