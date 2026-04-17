@@ -496,20 +496,29 @@ function sanitizeBotReply(reply) {
 
 function buildMentionReply(content) {
   const cleanContent = content.replace(/<@!?\d+>/g, "").trim();
-  if (!cleanContent) return "Hello! Ask me something or tell me what you need help with.";
+  if (!cleanContent) return "Hello! What would you like to talk about?";
 
   const lower = cleanContent.toLowerCase();
-  if (lower.includes("league")) return "Hello! For leagues, hosts can use `/league host`, players can use `/league join`, and hosts can cancel with `/league cancel`.";
-  if (lower.includes("event") || lower.includes("guess")) return "Hello! Event hosts can use `/hostevent` to set up a Guess the Number event, then start it with the control buttons.";
-  if (lower.includes("promotion")) return "Hello! Approved promotion managers can use `/promotiontimings schedule` and `/promotiontimings list` to manage promotion timings.";
-  if (lower.includes("help") || lower.includes("command")) return "Hello! I can help with leagues, events, and basic questions. Try asking me about hosting, joining, cancelling, or ending events.";
-  if (lower.includes("hello") || lower.includes("hi")) return "Hello! I am here. What do you need help with?";
-  if (lower.includes("prize")) return "Hello! The event prize is chosen by the event host when they create the event.";
-  if (lower.includes("number")) return "Hello! In Guess the Number events, send up to 2 number guesses at once in general chat.";
-  if (lower.includes("thanks") || lower.includes("thank you")) return "Hello! You are welcome.";
-  if (lower.endsWith("?")) return `Hello! About "${cleanContent}", I can help with server leagues, events, commands, and basic guidance. Please give me one clear detail and I will respond.`;
+  const includesAny = (words) => words.some((word) => lower.includes(word));
 
-  return `Hello! I saw you said: "${cleanContent}". If you want help, ask me a clear question about leagues, events, commands, or the server.`;
+  if (includesAny(["hello", "hi", "hey", "yo", "sup"])) return "Hello! What would you like to talk about?";
+  if (includesAny(["how are you", "how r you", "wyd", "what are you doing"])) return "I am doing good, just chilling here and helping out. What about you?";
+  if (includesAny(["good morning", "gm"])) return "Good morning! Hope your day starts well. What are we talking about?";
+  if (includesAny(["good night", "gn"])) return "Good night! Rest well, and I will be here when you are back.";
+  if (includesAny(["thanks", "thank you", "ty"])) return "No problem! Happy to help.";
+  if (includesAny(["bye", "goodbye", "cya", "see you"])) return "See you! Come back anytime.";
+  if (includesAny(["league"])) return "Yeah, leagues are handled here. Hosts can make them, players can join, and the bot keeps it organized.";
+  if (includesAny(["event", "guess"])) return "Events are pretty simple: staff starts one, people participate, and I track the important parts.";
+  if (includesAny(["promotion", "promo"])) return "Promotion timings are like a schedule board. They show what is active, what is next, and how long is left.";
+  if (includesAny(["prize"])) return "The prize depends on what the host sets. If there is an event running, check the event post for the exact prize.";
+  if (includesAny(["number"])) return "If this is about Guess the Number, send up to 2 numbers at once in general chat when the event is active.";
+  if (includesAny(["sad", "upset", "mad", "angry", "annoyed"])) return "Yeah, that sounds rough. Want to talk about what happened?";
+  if (includesAny(["happy", "excited", "nice", "great", "cool"])) return "Nice, that sounds good. Tell me more.";
+  if (includesAny(["stupid", "dumb"])) return "That sounds annoying, but we can keep it calm. What happened?";
+  if (includesAny(["help", "command"])) return "Sure, I can help. Ask me about leagues, events, promotions, or just tell me what you are trying to do.";
+  if (lower.endsWith("?")) return `Good question. About "${cleanContent}", I would say it depends on what you mean exactly. Tell me a bit more and I will try to help.`;
+
+  return `I hear you. About "${cleanContent}", that sounds interesting. Tell me more about it.`;
 }
 
 async function updateLeagueMessage(client, league) {
