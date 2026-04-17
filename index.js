@@ -28,6 +28,12 @@ const HEAD_OF_EVENT_ROLE_ID = "1482428444070379611";
 const GIVEAWAY_PING_ROLE_ID = "1460048231424852180";
 const PROMOTION_ALLOWED_USER_IDS = ["1180944141291634728", "1459790270370676798"];
 const HICOM_ROLE_ID = "1474820927173689344";
+const DIRECTOR_ROLE_ID = "1478898490691031211";
+const CO_OWNER_ROLE_ID = "1482508756746113216";
+const OWNER_ROLE_ID = "1475287458009583636";
+const FOUNDER_ROLE_ID = "1488059625944387654";
+const BLOODLINE_ROLE_ID = "1493083021752930315";
+const PLUS_ROLE_ID = "1478902879917179070";
 const DATABASE_PATH = path.join(__dirname, "database.json");
 
 const matchFormats = {
@@ -132,6 +138,38 @@ function hasHicomRole(member) {
   return hasRole(member, HICOM_ROLE_ID);
 }
 
+function hasDirectorRole(member) {
+  return hasRole(member, DIRECTOR_ROLE_ID);
+}
+
+function hasCoOwnerRole(member) {
+  return hasRole(member, CO_OWNER_ROLE_ID);
+}
+
+function hasOwnerRole(member) {
+  return hasRole(member, OWNER_ROLE_ID);
+}
+
+function hasFounderRole(member) {
+  return hasRole(member, FOUNDER_ROLE_ID);
+}
+
+function hasBloodlineRole(member) {
+  return hasRole(member, BLOODLINE_ROLE_ID);
+}
+
+function hasPlusRole(member) {
+  return hasRole(member, PLUS_ROLE_ID);
+}
+
+function canKickUser(member) {
+  return hasHicomRole(member);
+}
+
+function canBanUser(member) {
+  return hasDirectorRole(member) || hasCoOwnerRole(member) || hasOwnerRole(member) || hasFounderRole(member) || hasBloodlineRole(member) || hasPlusRole(member);
+}
+
 function canUsePromotionCommand(userId) {
   return PROMOTION_ALLOWED_USER_IDS.includes(userId);
 }
@@ -214,7 +252,7 @@ function buildEventAnnouncementEmbed(event) {
   return new EmbedBuilder()
     .setColor(0xf2cc60)
     .setTitle("Guess the Number Event")
-    .setDescription("How Does the Event Work?\nIn This Event, you’ll try to guess a randomly selected number within the given range.\nThe first person to guess the correct number wins the prize for this event! And you cannot say more than 2 numbers at once!")
+    .setDescription("How Does the Event Work?\nIn This Event, you'll try to guess a randomly selected number within the given range.\nThe first person to guess the correct number wins the prize!")
     .addFields(
       { name: "Event ID", value: `\`${event.id}\``, inline: true },
       { name: "Host", value: `<@${event.hostId}>`, inline: true },
@@ -506,8 +544,9 @@ function buildMentionReply(content) {
   const lower = cleanContent.toLowerCase();
   const includesAny = (words) => words.some((word) => lower.includes(word));
 
-  if (includesAny(["hello", "hi", "hey", "yo", "sup"])) return "Hello! What would you like to talk about?";
+  // Check specific phrases FIRST before general ones
   if (includesAny(["how are you", "how r you", "wyd", "what are you doing"])) return "I am doing good, just chilling here and helping out. What about you?";
+  if (includesAny(["hello", "hi", "hey", "yo", "sup"])) return "Hello! What would you like to talk about?";
   if (includesAny(["good morning", "gm"])) return "Good morning! Hope your day starts well. What are we talking about?";
   if (includesAny(["good night", "gn"])) return "Good night! Rest well, and I will be here when you are back.";
   if (includesAny(["thanks", "thank you", "ty"])) return "No problem! Happy to help.";
@@ -1111,6 +1150,63 @@ async function handleMentionMessage(message) {
 
   const reply = sanitizeBotReply(buildMentionReply(message.content));
   await message.reply(reply).catch(console.error);
+  return;
+}
+
+async function handleKickCommand(message, targetUser) {
+  if (!canKickUser(message.member)) {
+    await message.reply("You don't have permission to kick users.").catch(() => null);
+    return;
+  }
+
+  if (!targetUser) {
+    await message.reply("Please mention a user to kick.").catch(() => null);
+    return;
+  }
+
+  const targetMember = await message.guild.members.fetch(targetUser.id).catch(() => null);
+  if (!targetMember) {
+    await message.reply("I cannot find that user in this server.").catch(() => null);
+    return;
+  }
+
+  try {
+    await targetMember.kick(`Kicked by ${message.author.tag}`);
+    await message.reply(`<@${targetUser.id}> has been kicked from the server.`).catch(() => null);
+  } catch (error) {
+    console.error("Kick error:", error);
+    await message.reply("I couldn't kick that user. They may have higher permissions than me.").catch(() => null);
+  }
+}
+
+async function handleBanCommand(message, targetUser, isHardban = false) {
+  if (!canBanUser(message.member)) {
+    await message.reply("You don't have permission to ban users.").catch(() => null);
+    return;
+  }
+
+  if (!targetUser) {
+    await message.reply("Please mention a user to ban.").catch(() => null);
+    return;
+  }
+
+  const targetMember = await message.guild.members.fetch(targetUser.id).catch(() => null);
+  if (!targetMember && !isHardban) {
+    await message.reply("I cannot find that user in this server.").catch(() => null);
+    return;
+  }
+
+  try {
+    const deleteMessageDays = isHardban ? 7 : 0;
+    await message.guild.bans.create(targetUser.id, {
+      reason: `${isHardban ? "Hardban" : "Ban"} by ${message.author.tag}`,
+      deleteMessageSeconds: deleteMessageDays * 24 * 60 * 60
+    });
+    await message.reply(`<@${targetUser.id}> has been ${isHardban ? "hardban" : "ban"}ned from the server.`).catch(() => null);
+  } catch (error) {
+    console.error("Ban error:", error);
+    await message.reply("I couldn't ban that user.").catch(() => null);
+  }
 }
 
 async function checkPromotionReminders(client) {
@@ -1411,6 +1507,29 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 client.on(Events.MessageCreate, async (message) => {
   try {
+    // Handle prefix commands (,kick, ,ban, ,hb)
+    if (message.content.startsWith(",kick ")) {
+      const args = message.content.slice(6).trim().split(/\s+/);
+      const mentionedUser = message.mentions.users.first();
+      await handleKickCommand(message, mentionedUser);
+      return;
+    }
+
+    if (message.content.startsWith(",ban ")) {
+      const args = message.content.slice(5).trim().split(/\s+/);
+      const mentionedUser = message.mentions.users.first();
+      await handleBanCommand(message, mentionedUser, false);
+      return;
+    }
+
+    if (message.content.startsWith(",hb ")) {
+      const args = message.content.slice(4).trim().split(/\s+/);
+      const mentionedUser = message.mentions.users.first();
+      await handleBanCommand(message, mentionedUser, true);
+      return;
+    }
+
+    // Handle guess and mention messages
     await handleGuessMessage(message);
     await handleMentionMessage(message);
   } catch (error) {
