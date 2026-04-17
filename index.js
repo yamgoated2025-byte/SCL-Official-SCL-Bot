@@ -1501,6 +1501,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 client.on(Events.MessageCreate, async (message) => {
   try {
+    // Ignore bot messages
+    if (message.author.bot) return;
+
     // Handle prefix commands (,kick, ,ban, ,hb)
     if (message.content.startsWith(",kick ")) {
       const mentionedUser = message.mentions.users.first();
@@ -1520,16 +1523,21 @@ client.on(Events.MessageCreate, async (message) => {
       return;
     }
 
-    // Handle guess messages
+    // Check if message mentions the bot
+    const mentionsBot = message.mentions.users.has(message.client.user.id);
+
+    // If it mentions the bot, only handle mention messages
+    if (mentionsBot) {
+      await handleMentionMessage(message);
+      return;
+    }
+
+    // Otherwise handle guess messages
     await handleGuessMessage(message);
-    
-    // Handle mention messages
-    await handleMentionMessage(message);
   } catch (error) {
     console.error("Message handling error:", error);
   }
 });
-
 process.on("unhandledRejection", (error) => {
   console.error("Unhandled promise rejection:", error);
 });
